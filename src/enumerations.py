@@ -20,6 +20,7 @@ class LossFunc(Enum):
     BINARY = lambda y, y0: sum(y == y0)
     MAE = lambda y, y0: mean(abs(y - y0))
     LOG2 = lambda y, y0:  log2(sum(abs(y - y0)) + 1)
+    MSE =  lambda y, y0: sum(square(y - y0))
 
 class Smooth(Enum):
     LINEAR = 'linear'

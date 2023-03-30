@@ -16,13 +16,17 @@ class Matrix():
         return 0, 0
 
     @classmethod
-    def create_matrix(cls, raw_spectra,  config):
+    def create_matrix(cls, raw_spectra,  config, predicate=None):
         # преобразование спектров других длин ?
+        if not predicate:
+            predicate = lambda x: True
         matrix = []
         if not raw_spectra:
             return
         for spc in raw_spectra:
-            # spc.transform()
+            # spc.transform
+            if not predicate(spc):
+                continue
             if 'smooth' in config:
                 spc.smooth(**config['smooth'])
             if 'baseline' in config:

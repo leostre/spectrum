@@ -2,6 +2,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from enumerations import Scale
+from miscellaneous import voigt
 
 def show_spectra(spectra, save_path='', wavenumbers=None):
     if not spectra:
@@ -45,7 +46,20 @@ def show_spectra(spectra, save_path='', wavenumbers=None):
         plt.savefig(fname=save_path, dpi=600)
     else:
         plt.show()
-        
+
+def show_curve_approx(spc, params, *, path=None):
+    x = spc.wavenums
+    plt.plot(x, spc.data)
+
+    for amp, mu, w, g in params:
+        plt.plot(x, voigt(x, amp, mu, w, g))
+    plt.xlabel('???')
+    plt.ylabel('Intensity')
+    if path:
+        plt.savefig(path)
+    else:
+        plt.show()
+
 def spectra_log(spectra_dict, path='log.txt'):
     """
     Types the spectra collection into the file by path.

@@ -7,6 +7,7 @@ from exceptions import SpcCreationEx, SpcReadingEx, SpcChangeEx
 from baseline import baseline_alss, baseline_zhang, baseline_rubberband
 from scipy.interpolate import CubicHermiteSpline, CubicSpline, interp1d
 from smoothing import Smoother
+from miscellaneous import summ_voigts
 
 
 # add range
@@ -25,11 +26,14 @@ class Spectrum:
         '*': lambda x, y: x * y
     }
 
-    def __init__(self, wavenums=None, data=None, path='', clss: str = 'undefined'):
+    def __init__(self, wavenums=None, data=None, path='', clss: str = 'undefined', peaks=None):
         if wavenums is None:
             wavenums, data = np.array([], dtype=float), np.array([], dtype=float)
         self._path = path
-        if path and path.endswith('.csv'):
+        if peaks is not None:
+            self.data = summ_voigts(wavenums, peaks)
+            self.wavenums = wavenums
+        elif path and path.endswith('.csv'):
             self.wavenums, self.data, clss = Spectrum.read_csv(path)
         elif path:
             self.wavenums, self.data = Spectrum.__read_opus(path)
