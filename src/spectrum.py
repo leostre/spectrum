@@ -363,14 +363,14 @@ class Spectrum:
         for _ in range(n):
             y = y.cumsum()
         self.data = y
-        # from scipy.integrate import quad
 
     def interpolate(self, x, mode=Smooth.CUBIC_SPLINE):
-        # changed = False
-        # if x[0] > x[1]:
-        #     newx = x[::-1]
-        #     changed = True
+        """
+        :param x: numpy array of floats - new dots. Need to be the subrange of the spectrum wavelengths
+        :param mode: Smooth
 
+        interpolate the spectrum in-place
+        """
         newx = x[::-1]
         reversed_x = False
         if self.wavenums[-1] < self.wavenums[0]:
@@ -393,23 +393,18 @@ class Spectrum:
 
     def __isintegral(self):
         return 3 > len(self.get_extrema()[1] + self.get_extrema(minima=True)[1])
-        # return np.abs(self.data).max() < 0.25 # sum(map(lambda x: x < 0, self.data)) > 0.05 * len(self)
-        # mi = self.data.min()
-        # ma = self.data.max()
-        # return  (mi >= 0 or abs(ma) / abs(mi) > 10.)
 
-    def transform(self):
-        from output import show_spectra
+
+    def _transform(self):
+        """
+        Support method for derivative-to-integral transformation
+        """
         count = 5
         while abs(self.data.max()) < 1 and count and not self.__isintegral():
             self.integrate()
-            # show_spectra([self])
             count -= 1
             if abs(self.data.min()) / abs(self.data.max()) > 100:
                 self *= -1
-            # if self.auc() < 0:
-            #     self *= -1
-        # self.get_derivative(2)
 
     @classmethod
     def read_csv(cls, path):
@@ -436,8 +431,9 @@ if __name__ == '__main__':
     from scan import get_spectra_list
     from output import show_spectra
 
-    spa = get_spectra_list(path='../data', recursive=True)
+    spa = get_spectra_list(path='../new_data', recursive=True)
     spc = spa[128]
+    print(len(spc), spc.step, spc[-1][0], spc[0][0])
     spec = spc * 1
     spec.integrate(2)
     spec.correct_baseline()

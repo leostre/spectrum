@@ -1,11 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.signal import savgol_filter
-from scipy.optimize import minimize, least_squares
+from scipy.optimize import least_squares
 from spectrum import Spectrum
 from output import show_spectra
 from enumerations import LossFunc
-from random import random
 from miscellaneous import gauss, lorentz, voigt, n_sigma_filter
 import os
 from output import show_curve_approx
@@ -34,10 +32,15 @@ class Deconvolutor:
         self.loss_func = loss_func
 
     def peaks_by_2der(self):
+        """
+        :return: (wavenumbers, intensities) of peaks defined with th 2nd derivative
+        """
         orig = self.spectrum * 1
         der = orig * 1
         der.get_derivative(2)
         maxdata = orig[der.get_extrema(locals=False, minima=False)[0]][1]
+        if not isinstance(maxdata, (float, int)):
+            maxdata = maxdata[0]
         indices = list(filter(lambda x: orig[x][1] > self.threshold * maxdata,
                               der.get_extrema(minima=True, locals=True)[0]))
         wavenumbers = list(map(lambda x: orig[x][0], indices))
@@ -46,6 +49,12 @@ class Deconvolutor:
 
     @staticmethod
     def __split_in_equal(v, to_app):
+        """
+        Support
+        :param v: iterable - vector of parameters
+        :param to_app: list of str - paameters names for approximation step; determines the order
+        :return: dict (str: iterable)
+        """
         res = {}
         division = len(v) // len(to_app)
         def chunks(v, division):
@@ -59,6 +68,11 @@ class Deconvolutor:
 
     @staticmethod
     def __melt(d, to_app):
+        """
+        :param d: dict (str: iterable) - parameters to melt
+        :param to_app: list of str - paameters names for approximation step; determines the order
+        :return: list
+        """
         res = []
         for param in Deconvolutor.vseq:
             if param in to_app:
@@ -67,6 +81,12 @@ class Deconvolutor:
 
 
     def __approximate(self, params: dict):
+        """
+        :param params: iterable of (amplitudes, positions, widths, gauss proportions)
+        :return: numpy.array of floats
+
+        Summarize the individual bands
+        """
         assert set(params) == set(Deconvolutor.vseq), 'Some of parameters are not specified!'
         x = self.spectrum.wavenums
         data = np.zeros(len(x))
@@ -79,6 +99,15 @@ class Deconvolutor:
         return data
 
     def _deconvolute(self, guess: dict, fixed: dict, penalty=None):
+        """
+        :param guess: iterable of numeric - initial guess on the bands characteristics
+        :param fixed: dict (str - name of band characteristic: iterable of float - fixed values) -
+         values not involved into approximation
+        :param penalty: (dict (str - name of band characteristic: iterable of float - values)) -> float
+        - penalty on band ensemble characteristics
+        :return: (list of (amplitudes, positions, widths, gauss proportions),
+        dict (str - name of band characteristic: iterable of float - values))
+        """
         to_app = [x for x in Deconvolutor.vseq if x not in fixed]
         guess_v: list = self.__melt(guess, to_app)
         deconvolutor = self
@@ -91,11 +120,6 @@ class Deconvolutor:
                 if penalty and 'widths' not in fixed else 0)
         res = least_squares(
             __residues, guess_v,
-            # args=(
-            #     self,
-            #     fixed,
-            #     penalty
-            # ),
             xtol=10e-9,
             ftol=10e-9,
             bounds=list(zip(*[(0, np.inf)] * len(guess_v)))
@@ -106,21 +130,25 @@ class Deconvolutor:
         return peaks, params
 
     def deconvolute(self, pipeline_fixed=None, penalty=None, n_sigmas=None, verbose=False, save_directory=None):
+        """
+        :param pipeline_fixed: list of tuples of characteristics names - the instruction
+         whicn characteristics to keep untouched on every single iteration of the algorithm
+        :param penalty: (dict (str - name of band characteristic: iterable of float - values)) -> float
+        - penalty on band ensemble characteristics
+        :param n_sigmas: float - number of sigmas
+        :param verbose: bool
+        :param save_directory: str - path - if verbose is set True, saves the images of curve approximation by this path
+        :return: (list of (amplitudes, positions, widths, gauss proportions),
+        dict (str - name of band characteristic: iterable of float - values))
+        """
         if not pipeline_fixed:
             pipeline_fixed = Deconvolutor.pipeline_fixed
         w, d = self.peaks_by_2der()
-
-        # w_add = set()
-        # for i in range(1, len(w)):
-        #     w_add.add((w[i] + w[i-1]) / 2)
-        # w.extend(w_add)
-        # w.sort()
-
         n = len(w)
         params = {
             'mus': w,
             'voi': np.ones(n),
-            'amps': d, # np.ones(n),
+            'amps': d,
             'widths': np.ones(n)
         }
 
@@ -141,7 +169,7 @@ class Deconvolutor:
             if verbose:
                 show_curve_approx(self.spectrum, peaks, path=os.path.join(save_directory, str(fixed) + str(i) + '.jpg')
                 if save_directory else None)
-                show_spectra([self.spectrum, Spectrum(spc.wavenums, peaks=peaks)])
+                show_spectra([self.spectrum, Spectrum(self.spectrum.wavenums, peaks=peaks)])
                 plt.show()
                 plt.hist(params['widths'])
                 plt.show()
@@ -149,16 +177,36 @@ class Deconvolutor:
 
     @staticmethod
     def width_penalty(d):
+        """
+        :param d: dict (str - name of band characteristic: iterable of float - values)
+        :return: float
+        """
         tmp = np.array(d['widths'])
         return LossFunc.MSE(tmp, np.array([np.median(tmp)] * len(tmp)))
 
     @staticmethod
     def symmetric_band_split(a, m, w, v):
+        """
+        :param a: float - amplitude
+        :param m: float - position
+        :param w: float - width
+        :param v: float - Gauss proportion
+        :return: two bands parameters sets
+        """
         shift = w / 2
         return (a * 0.7, m - shift, w * 0.4, v), (a * 0.7, m - shift, w * 0.4, v)
 
     @staticmethod
     def __split_broad_bands(peaks, params, n_sigmas=None):
+        """
+        :param peaks: (list of (amplitudes, positions, widths, gauss proportions)
+        :param params: dict (str - name of band characteristic: iterable of float - values))
+        :param n_sigmas: float - number of sigmas
+        :return: (list of (amplitudes, positions, widths, gauss proportions),
+        dict (str - name of band characteristic: iterable of float - values))
+
+        Replace each of the broad bands by two lesser
+        """
         if not n_sigmas:
             n_sigmas = Deconvolutor.n_sigmas
         in_intervals = n_sigma_filter(params['widths'], n_sigmas)
@@ -185,35 +233,3 @@ class Deconvolutor:
         return new_peaks, new_params
 
 
-if __name__ == '__main__':
-    print('DECONVOLUTION')
-    from scan import get_spectra_list
-    spc = get_spectra_list(path=r'..\new_data', recursive=True)[0].range(1750., 1400.)
-
-    dec = Deconvolutor(spc)
-    w, d = dec.peaks_by_2der()
-    n = len(w)
-    peaks, params = dec.deconvolute([
-        ('voi', 'mus'),
-        'split',
-        ('voi', 'widths'),
-        ('voi', 'mus'),
-        'split',
-        ('voi', 'mus'),
-        ('voi', 'mus', 'widths'),
-        ('voi', 'mus', 'amps'),
-        # ('voi', 'widths', 'amps'),
-        # ('voi', 'mus', 'amps'),
-        # ('voi', 'mus', 'widths'),
-        # ('voi', 'mus', 'amps'),
-        # ('voi', 'widths', 'amps'),
-        ],
-        None,
-        n_sigmas=1.2,
-        save_directory=r'C:\Users\user\PycharmProjects\spectrum\tmp',
-        verbose=True)
-    # print(params)
-    # show_spectra([
-    #     Spectrum(w, peaks=peaks, clss='arti'),
-    #     spc
-    # ])

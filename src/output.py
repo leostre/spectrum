@@ -1,11 +1,20 @@
-# from spectrum import Spectrum
 import numpy as np
 import matplotlib.pyplot as plt
-from enumerations import Scale
 from miscellaneous import voigt
+
+SMALL_SIZE = 16
+MEDIUM_SIZE = 18
+BIGGER_SIZE = 22
 
 
 def show_spectra(spectra, save_path='', wavenumbers=None):
+    """
+    :param spectra: iterable of Spectrum - the spectra to be plotted
+    :param save_path: str - filename. If specified the view window of pyplot isn't shown
+    :param wavenumbers: (float, float) - limits of the spectra
+
+    Plots the collection of spectra
+    """
     if not spectra:
         return
     classes = list(sorted(set(map(lambda x: x.clss, spectra))))
@@ -14,17 +23,11 @@ def show_spectra(spectra, save_path='', wavenumbers=None):
     plt.figure(figsize=(20, 8))
     class_color = dict.fromkeys(classes, None)
     for spc in spectra:
-
         if wavenumbers:
             spc = spc.range(*wavenumbers)
         line = plt.plot(spc.wavenums, spc.data, c=colors[spc.clss], linewidth=0.5)
         class_color[spc.clss] = line[0]
 
-    # clrs = list(set(clrs))
-    # font = {'family':'serif','color':'black','size':18}
-    SMALL_SIZE = 16
-    MEDIUM_SIZE = 18
-    BIGGER_SIZE = 22
     plt.rc('font', size=MEDIUM_SIZE)  # controls default text sizes
     plt.rc('axes', titlesize=BIGGER_SIZE)  # fontsize of the axes title
     plt.rc('axes', labelsize=BIGGER_SIZE)  # fontsize of the x and y labels
@@ -48,13 +51,21 @@ def show_spectra(spectra, save_path='', wavenumbers=None):
         plt.show()
 
 
-def show_curve_approx(spc, params, *, path=None):
+def show_curve_approx(spc, peaks, *, path=None):
+    """
+    :param spc: Spectrum
+    :param peaks: (list of (amplitudes, positions, widths, gauss proportions)
+    :param path: str - filename. If specified the view window of pyplot isn't shown
+
+    Plot the spectrum and its bandwise decomposition on the same canvas
+    """
     x = spc.wavenums
     plt.plot(x, spc.data)
 
-    for amp, mu, w, g in params:
+    for amp, mu, w, g in peaks:
         plt.plot(x, voigt(x, amp, mu, w, g))
-    plt.xlabel('???')
+
+    plt.xlabel('Some units')
     plt.ylabel('Intensity')
     if path:
         plt.savefig(path)
@@ -64,8 +75,10 @@ def show_curve_approx(spc, params, *, path=None):
 
 def spectra_log(spectra_dict, path='log.txt'):
     """
-    Types the spectra collection into the file by path.
+    :param spectra_dict: dict (hashable : Spectrum)
+    :param path: str
 
+    Types the spectra collection into the file by path.
     """
     with open(path, 'w') as f:
         for spc in spectra_dict:
@@ -96,6 +109,9 @@ def heatmap(data, ax=None,
 
 
 def auto_heatmap(spc, step=100):
+    """
+    Plot correlations within the spectrum
+    """
     def each_to_each(spc):
         mtr = []
         for i in range(len(spc)):
@@ -113,6 +129,13 @@ def auto_heatmap(spc, step=100):
     plt.show()
 
 def plot_margins(X, y, margins, path='', cm=None):
+    """
+    :param X: pandas.DataFrame - population
+    :param y: pandas.Series - labels
+    :param margins: iterable - objects margins
+    :param path: str
+    :param cm: colormap
+    """
     if not cm:
         cm = plt.cm.get_cmap('tab20')
     plt.figure(figsize=(20, 16))

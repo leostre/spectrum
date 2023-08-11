@@ -7,14 +7,21 @@ from scipy.sparse.linalg import spsolve
 
 def baseline_zhang(y, polynomial_degree=2):
     """
-	adaptive iteratively reweighted Penalized Least Squares (airPLS) - Zhi-Min Zhang et.al
-	https://pubs.rsc.org/is/content/articlelanding/2010/an/b922045c#!divAbstract
+    :param: numpy.array of floats
+    :return: numpy.array of floats
+
+	adaptive iteratively reweighted Penalized Least Squares
 	"""
     baseObj = BaselineRemoval(y)
     return baseObj.ZhangFit()
 
 
 def baseline_rubberband(x, y):
+    """
+    :param x: numpy.array of floats
+    :param y: numpy.array of floats
+    :return: numpy.array of floats - data without baseline
+    """
     base = ConvexHull(list(zip(x, y))).vertices
     base = np.roll(base, -base.argmax() - 1)
     base1 = base[base.argmin():]
@@ -30,9 +37,14 @@ def baseline_rubberband(x, y):
 
 def baseline_alss(y, lam=1e6, p=1e-3, niter=10):
     """
-	an algorithm called "Asymmetric Least Squares Smoothing" by P. Eilers and H. Boelens
-	https://stackoverflow.com/questions/29156532/python-baseline-correction-library
-	"""
+    :param y: numpy.array of floats - data
+    :param lam: float - smoothing degree
+    :param p: float - asymmetry coefficient. Preferably in range [0.001, 0.1]
+    :param niter: int - number of aloruthm iterations
+    :return: numpy.array of floats - data without baseline
+
+    Asymmetric Least Squares Smoothing by P. Eilers and H. Boelens
+    """
     L = len(y)
     D = sparse.diags([1, -2, 1], [0, -1, -2], shape=(L, L - 2))
     D = lam * D.dot(D.transpose())

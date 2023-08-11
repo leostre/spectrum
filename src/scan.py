@@ -81,6 +81,16 @@ def read_data(path='data', classify=False, recursive=False):
     return list(zip(paths, classes))
 
 def read_columns(path, v_offset=0, delimiter=',', columns_indices=(0, 1), scale=Scale.WAVELENGTH_nm):
+    """
+    :param path: str
+    :param v_offset: int - number of lines to skip before data starts
+    :param delimiter: str
+    :param columns_indices: tuple of int - columns indices to include
+    :param scale: Scale
+    :return: (numpy.array, numpy.array) - x and y coordinates of data points separately
+
+    Function to parse table data performed in a custom symbol separated format
+    """
     with open(path, 'r') as inp:
         for _ in range(v_offset):
             next(inp)

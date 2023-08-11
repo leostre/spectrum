@@ -6,9 +6,11 @@ from scan import get_spectra_list, get_spectra_dict
 from miscellaneous import scale_change
 from smoothing import Smoother
 import matplotlib.pyplot as plt
+import seaborn as sns
+import pandas as pd
 
 
-class Matrix():
+class Matrix:
     def __init__(self, spectra):
         self.spectra = spectra
 
@@ -20,7 +22,12 @@ class Matrix():
 
     @classmethod
     def create_matrix(cls, raw_spectra, config, predicate=None):
-        # преобразование спектров других длин ?
+        """
+        :param raw_spectra: iterable of Spectrum
+        :param config: dict - spectra modifications description
+        :param predicate: (spc) -> bool - function to determine whether to include the spectrum
+        :return: Matrix
+        """
         if not predicate:
             predicate = lambda x: True
         matrix = []
@@ -45,10 +52,18 @@ class Matrix():
 
     @property
     def sample_spectrum(self):
+        """
+        Yet to be designed.
+        :return:
+        """
         pass
 
     @classmethod
     def create_from_dataframe(cls, df: DataFrame):
+        """
+        :param df: pandas.DataFrame
+        :return: Matrix
+        """
         spectra = []
         classes = df.pop(df.columns[0])
         scale = df.columns.astype(float)
@@ -63,10 +78,18 @@ class Matrix():
         return Matrix(spectra)
 
     def differentiate(self, n=2):
+        """
+        :param n: derivative order
+
+        in-place differentiation
+        """
         for spc in self.spectra:
             spc.get_derivative(n=n)
 
     def similarity_hist(self):
+        """
+        Plot the histogram of pairwise cosine similarity
+        """
         similarities = []
         n = len(self.spectra)
         for i in range(n):
@@ -77,6 +100,13 @@ class Matrix():
 
     @classmethod
     def read_csv(cls, path, scale_type=Scale.WAVENUMBERS):
+        """
+        :param path: filepath to the csv file
+        :param scale_type: Scale
+        :return: (scale, data, class)
+
+        Creates a generator to get separately essential characteristics from a big size csv file
+        """
         with open(path, 'r') as csv:
             scale = csv.readline().split(',')
             scale_t, *scale = scale
@@ -99,6 +129,12 @@ class Matrix():
                 yield scale, data, clss
 
     def save_matrix(self, path='matrix.csv', scale_type=Scale.WAVENUMBERS):
+        """
+        :param path: str - file destination
+        :param scale_type: Scale
+
+        Writes the Matrix as a csv fie
+        """
         if not self.spectra:
             return
         sc = self.spectra[0]
@@ -110,30 +146,46 @@ class Matrix():
                 print(spc.clss, *spc.data, sep=',', file=out)
 
     def as_2d_array(self, predicate=lambda x: True):
+        """
+        :param predicate: (spc) -> bool: which spectra to include
+        :return: 2d numpy.array
+        """
         return np.vstack([spc.data for spc in self.spectra if predicate(spc)])
 
-    def corr_half(self, predicate):
+    def __corr_half(self, predicate):
+        """
+        :return: a half of the correlation matrix within the selection
+        """
         C = 4
         r = self.corr(predicate) + C
         r = np.triu(r, 1) - C
         return np.array(list(filter(lambda x: x >= -1, r.flatten())))
 
     def average_by_point(self):
+        """
+        :return: Spectrum - the averaged spectrum
+        """
         res = np.zeros(self.shape[1])
         for spc in self.spectra:
             res += spc.data
         return res / self.shape[0]
 
     def corr(self, predicate):
-        import pandas as pd
+        """
+        :param predicate:  (spc) -> bool: which spectra to include
+        :return: 2d numpy.array - correlation matrix
+        """
         mtr = self.as_2d_array(predicate)
-        # mtr = np.vstack([mtr[0], mtr[0]])
         mtr = pd.DataFrame(mtr)
-        # print('SAMPLE: \n', mtr.sample())
-        # print('SHAPE: ', mtr.shape)
-        return mtr.corr().to_numpy()
+        return mtr.corr(method='spearman').to_numpy()
 
     def one_spectrum(self, spc):
+        """
+        :param spc: Spectrum
+        :return: 2d numpy.array
+
+        intraspectrum correlation
+        """
         avgs = self.average_by_point()
         res = np.zeros(shape=(len(spc), len(spc)))
         y = spc.data
@@ -159,86 +211,18 @@ class Matrix():
         }
 
     def get_random_values(self, correls, d):
-        # d = self.get_stat_matrix()
         stds = d['std']
         means = d['mean']
         size = stds.shape[0]
         res = np.zeros(shape=(size,))
-        # tmp = np.zeros(shape=(size, size))
-        # for i in range(size):
-        #     for j in range(size):
-        #         tmp[i][j] = np.random.normal(means[i, j], stds[i, j])
+
         for i in range(size):
             res[i] = np.random.normal(
                 (means[:, i] * np.abs(correls[:, i])).sum() / np.abs(correls[:, i]).sum(),
                 stds[:, i].mean()
-                # (stds[:, i] * np.abs(correls[:, i])).sum() / np.abs(correls[:, i]).sum()
-            )  # (tmp[:, i] * np.abs(correls[:, i])).sum() / np.abs(correls[:, i]).sum()
+            )
         return res
 
-
-if __name__ == '__main__':
-    print('MATRIX')
-    spa = get_spectra_list(path=r'../new_data', classify=True, recursive=True)
-    spc = spa[2]
-    # spc.correct_baseline(BaseLineMode.ZHANG)
-    from output import show_spectra
-
-    # print(spc)
-    example = spc * 1
-    example.clss = 'ex'
-    pre_0der_conf = {
-        'baseline': {'method': BaseLineMode.RB},
-        'normalize': {'method': NormMode.MINMAX},
-        'smooth': {'method': Smoother.moving_average, 'window_length': 13},
-        # 'derivative': {'n': 2}
-    }
-    # print(spa)
-    spa = [spc for spc in spa if 'heal' in spc.clss or 'not' not in spc.clss]
-    # print(list(map(lambda x: x.clss, spa)))
-    mtr = Matrix.create_matrix(spa, {
-        'baseline': {'method': BaseLineMode.RB},
-        'normalize': {'method': NormMode.MINMAX},
-        'smooth': {'method': Smoother.moving_average, 'window_length': 3},
-        # 'derivative': {'n': 2}
-        'range': (1800., 600.),
-    })
-    show_spectra(mtr.spectra)
-    mtr.save_matrix('../tmp/EH_preproc_trunc.csv')
-    starts = list(map(lambda x: x[-1][1], mtr.spectra))
-    print(np.argmax(starts))
-    from output import heatmap
-    import matplotlib.pyplot as plt
-    from spectrum import Spectrum
-
-    # correls = mtr.corr(lambda x: True)
-    # d = mtr.get_stat_matrix()
-    # art_spa_wiener = []
-    # art_spa_movage = []
-    # for i in range(10):
-    #     spc_art1 = Spectrum(mtr.spectra[0].wavenums, mtr.get_random_values(correls, d))
-    #     spc_art2 = spc_art1 * 1
-    #     spc_art1.smooth(Smoother.wiener)
-    #     art_spa_wiener.append(spc_art1)
-    #     spc_art2.smooth(Smoother.moving_average, window_length=17)
-    #     art_spa_movage.append(spc_art2)
-    # show_spectra(art_spa_wiener)
-    # show_spectra(art_spa_movage)
-    # spc_art2 = Spectrum(mtr.spectra[0].wavenums, mtr.get_random_values(correls))
-    # avg_spec = Spectrum(mtr.spectra[0].wavenums, mtr.average_by_point())
-
-    # spc_diff = spc_art2 - spc_art1
-    # data = mtr.get_random_values()
-    # show_spectra([spc, spc_diff, spc_art1, spc_art2, avg_spec])
-    # plt.plot(data)
-    # plt.show()
-
-    # heatmap()
-    # plt.imshow(mtr.corr(lambda x: 'heal' in x.clss))
-    # plt.show()
-    # res = np.linalg.eigvals(mtr.one_spectrum(mtr.spectra[0])).real[:10]
-    # print(res)
-    # show_spectra([Spectrum(np.arange(len(res)), res)])
 
 
 

@@ -22,39 +22,69 @@ width_sigma = 2 * sqrt(log(2))  # * np.sqrt(2)
 width_lambda = 2.
 
 
-# def gauss(x, amp, mu, sigma):
-#     return amp / sigma / np.sqrt(2.*np.pi) * np.exp(-0.5 * ((x - mu) / sigma)**2)
-
 def gauss(x, amp, mu, w):
+    """
+    :param x: iterable of numeric - wavelengths axis
+    :param amp: float - Gaussian bell amplitude
+    :param mu: float - peak position
+    :param w: float - band width
+    :return: numpy.array of floats
+
+    Gauss curve
+    """
     sigma = w / width_sigma
     return amp * exp(-square((x - mu) / sigma))
 
 
 def lorentz(x, amp, x0, w):
+    """
+    :param x: iterable of numeric - wavelengths axis
+    :param amp: float - pseudo-Voigt bell amplitude
+    :param x0: float - peak position
+    :param w: float - band width
+    :param gauss_prop:
+    :return: numpy.array of floats
+
+    Lorentz curve
+    """
     return amp / (square(2 * (x - x0) / w) + 1.)
 
 
 def voigt(x, amp, x0, w, gauss_prop):
-    # assert 0 <= gauss_prop <= 1
+    """
+    :param x: iterable of numeric - wavelengths axis
+    :param amp: float - pseudo-Voigt bell amplitude
+    :param x0: float - peak position
+    :param w: float - band width
+    :param gauss_prop:
+    :return: numpy.array of floats
+
+    Pseudo-Voigt curve
+    """
     return gauss_prop * gauss(x, amp, x0, w) + (1 - gauss_prop) * lorentz(x, amp, x0, w)
 
 def summ_voigts(x, params):
+    """
+    :param x: iterable of numeric - wavelengths axis
+    :param params: iterable of (amplitudes, positions, widths, gauss proportions)
+    :return: numpy.array of floats - intensities
+    """
     data = zeros(len(x))
     for amp, mu, w, g in params:
         data += voigt(x, amp, mu, w, g)
     return data
 
 def n_sigma_filter(sequence, n=1):
+    """
+    :param sequence: iterable of numeric
+    :param n: float - number of sigmas
+    :return: filtered sequence
+    """
     sigma = std(sequence)
     mu = mean(sequence)
     lo = mu - sigma * n
     hi = mu + sigma * n
     return [lo <= sequencei <= hi for sequencei in sequence]
-
-
-# def pack_dictionary(d, order):
-#     res = []
-#     for
 
 def filter_opus(path):
     """
@@ -74,11 +104,16 @@ def filter_opus(path):
             return True
 
 def save_model(model, path):
+    """
+    Pickles the object to the path.
+    """
     with open(path, 'wb') as out:
       pickle.dump(model, out)
 
 def load_model(path):
-    tmp = None
+    """
+    Inpickles the object aquired from the path
+    """
     with open(path, 'rb') as inp:
         tmp = pickle.load(inp)
     return tmp

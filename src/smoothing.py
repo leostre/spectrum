@@ -2,14 +2,10 @@ from scipy.signal import savgol_filter, wiener, sosfilt, spline_filter, deconvol
 from scipy.ndimage import gaussian_filter
 from enumerations import LossFunc, NormMode, BaseLineMode, Smooth
 import numpy as np
-from numpy.fft import fft, ifft, fftshift
+from numpy.fft import fft, ifft
 import matplotlib.pyplot as plt
-# from scan import get_spectra_list, read_columns
 from output import show_spectra
-import os
-# import statsmodels.api as sm
 import time
-from miscellaneous import gauss
 
 class ParamGrid:
     configs = {}
@@ -17,6 +13,12 @@ class ParamGrid:
 
     @staticmethod
     def param_gen(param: dict, iterby: str=None):
+        """
+        :param param: dict (str - param name : list - values) - parameter grid to iterate through
+        :param iterby: str - name of parameter to iterate in case the only one need to be generated.
+        Other params are set as the first values in iterables
+        :return: configuration dicts
+        """
         if not param:
             return {}
         names = list(param)
@@ -47,6 +49,17 @@ class ParamGrid:
                                    path='lowess_report.csv',
                                    delimiter=',',
                                    loss=LossFunc.RMSE):
+        """
+        :param spc: Spectrum - imperfect spectrum
+        :param spc_ideal: Spectrum - theoretically ideal spectrum to get
+        :param prng: dict - dict with all possible values of parameters
+        :param process: (Spectrum, **params) -> numpy.array - modification to be applied
+        :param path: str - destination filepath
+        :param delimiter: str
+        :param loss: LossFunc
+
+        Prints the comparative report on different settings of the specified process
+        """
         headers = list(prng) + ['peaks', 'comptime', 'loss']
         with open(path, 'w') as out:
             out.write(delimiter.join(headers) + '\n')
@@ -67,6 +80,13 @@ class ParamGrid:
 
     @classmethod
     def _comb_spectrum(cls, spc, fold=2):
+        """
+        :param spc: Spectrum
+        :param fold: int - number of parts to split spectrum into
+        :return: (spectrum of values left, spectrum of reference values)
+
+        Regularly split the intensities sequence of spc into two spectra
+        """
         from spectrum import Spectrum
         assert fold >= 2, 'Can\'t split in case fold < 2!'
         size = len(spc)
@@ -78,6 +98,14 @@ class ParamGrid:
 
     @classmethod
     def score(cls, spc, fold, process, loss=LossFunc.RMSE, **process_params):
+        """
+        :param spc: Spectrum
+        :param fold: int - number of parts to split spectrum into
+        :param process: (Spectrum, **params) -> numpy.array - modification to be applied
+        :param loss: LossFunc
+        :param process_params:
+        :return: float - mean loss by all folds
+        """
         results = []
         for basis, reference in ParamGrid._comb_spectrum(spc, fold):
             try:
@@ -87,7 +115,6 @@ class ParamGrid:
                 yproc = process(basis, **process_params)
                 results.append(loss(yproc, reference.data))
             except Exception as ex:
-                # print(ex)
                 continue
         if not results:
             return np.inf
@@ -97,6 +124,14 @@ class ParamGrid:
 
     @classmethod
     def best_method_perfomance(cls, spc, method, grid, loss=LossFunc.RMSE, fold=2):
+        """
+        :param spc: Spectrum
+        :param method: (Spectrum, **params) -> numpy.array - modification to be applied
+        :param grid: dict - dict with all possible values of parameters
+        :param loss: LossFunc
+        :param fold: int - number of parts to split spectrum into
+        :return: (dict - best params, float - best score)
+        """
         best_score = np.inf
         best_params = None
         for prmset in ParamGrid.param_gen(grid):
@@ -108,6 +143,15 @@ class ParamGrid:
 
     @classmethod
     def best_method(cls, spc, general_grid=None, loss=LossFunc.RMSE, fold=2):
+        """
+        :param spc: Specrum
+        :param general_grid: ict - dict with all possible values of parameters common for the methods used
+        :param loss: LossFunc
+        :param fold: int - number of parts to split spectrum into
+        :return: best_method, best_params, best_score
+
+        Compare several methods performance on the chosen spc
+        """
         best_params = None
         best_score = np.inf
         best_method = None
@@ -126,10 +170,20 @@ class ParamGrid:
 
 
     @classmethod
-    def peaks_losses(cls, noised, ideal, process, config: dict, iterby: str, loss=LossFunc.RMSE, ):
+    def peaks_losses(cls, noised, ideal, process, config: dict, iterby: str, loss=LossFunc.RMSE):
+        """
+        :param noised: Spectrum
+        :param ideal: Spectrum
+        :param process:  (Spectrum, **params) -> numpy.array - modification to be applied
+        :param config: config dict
+        :param iterby: str - name of parameter to iterate in case the only one need to be generated.
+        :param loss: LossFunc
+
+        Plot the peaks number dependency on the iterby parameter value
+        """
         real_peaks_number = len(ideal.get_extrema(minima=False, locals=True)[0])
         losses = []
-        peaks = []  # [len(noised.get_extrema(minima=False, locals=True)[0])]
+        peaks = []
         addspc = noised * 1
         prms = []
 
@@ -225,7 +279,6 @@ class Smoother(ParamGrid):
         plt.legend()
         plt.show()
 
-    
 
     @staticmethod
     def fourier(spc, thr=1e-4, size=0.97):
@@ -239,21 +292,4 @@ class Smoother(ParamGrid):
         return ifft(y)
 
 
-if __name__ == '__main__':
-    print('Smooth!')
-    from scan import get_spectra_list
-    spa = get_spectra_list(path='new_data', classify=True, recursive=False)
-    show_spectra(spa)
             
-            
-
-    # print(getattr(Smoother, 'savgol')(spc))
-
-
-    # print(*list(ParamGrid.param_gen(Smoother.configs['savgol'])), sep='\n')
-    # for prmset in ParamGrid.param_gen(Smoother.configs['savgol']):
-    #     print(Smoother.score(spc, 2, Smoother.savgol, loss=LossFunc.RMSE,
-    #                          **prmset))
-    #     # methodfunc = Smoother.__dict__[method]
-    #     print(methodfunc, method, Smoother.optima
-
