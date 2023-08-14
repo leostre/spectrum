@@ -38,7 +38,7 @@ class Darwin:
         'amps': 0.01
     }
     _misclassified_proportion = 0.1
-    _imbreeding_threshold = 0.99
+    _inbreeding_threshold = 0.99
 
     def __init__(self, estimator_path='../tmp/darwin_estimator.pkl', proba_distr=None):
         self._estimator = load_model(estimator_path)
@@ -135,7 +135,7 @@ class Darwin:
             f, s = map(int, (distr_generator.rvs(size=2, **generator_kwargs)))
             if f <= max_ind and s <= max_ind and \
                 Spectrum(self.scale, self.current_population.iloc[f, :]) ^\
-                Spectrum(self.scale, self.current_population.iloc[s, :]) < self._imbreeding_threshold:
+                Spectrum(self.scale, self.current_population.iloc[s, :]) < self._inbreeding_threshold:
                 if not self.interclass_breeding and self.current_target.iloc[s] != self.current_target.iloc[f]:
                     maxiter -= 1
                     continue
